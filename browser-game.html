@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Turbo Arena — Browser Prototype</title>
+<title>Turbo Arena v2 — Faster Cars + Bot</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#08111f;color:#eef5ff;font:16px system-ui,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:14px}main{width:min(100%,1200px)}header{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:10px}h1{font-size:clamp(20px,4vw,30px);margin:0}.hud{display:flex;gap:12px;align-items:center;background:#142238;padding:9px 14px;border-radius:12px;font-weight:700}canvas{display:block;width:100%;height:auto;border:2px solid #3c5878;border-radius:14px;background:#172e37;touch-action:none}p{color:#c5d5e8;line-height:1.5;margin:10px 2px}.controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}button{background:#1e3856;color:white;border:1px solid #547493;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}button:hover{background:#2a4b70}.mobile{display:none;gap:8px;justify-content:center;margin-top:10px}.mobile button{min-width:60px;min-height:50px;font-size:18px;touch-action:none}@media(max-width:650px){.mobile{display:flex;flex-wrap:wrap}}
 </style></head><body><main>
-<header><h1>⚽ Turbo Arena</h1><div class="hud"><span>BLUE <b id="blue">0</b></span><span>—</span><span><b id="orange">0</b> ORANGE (BOT)</span><span id="clock">90s</span></div></header>
+<header><h1>⚽ Turbo Arena v2 — BOT + TURBO</h1><div class="hud"><span>BLUE <b id="blue">0</b></span><span>—</span><span><b id="orange">0</b> ORANGE (BOT)</span><span id="clock">90s</span></div></header>
 <canvas id="game" width="1280" height="760" aria-label="Top-down car soccer game"></canvas>
 <p><b>Controls:</b> W / ↑ accelerate · S / ↓ reverse · A / ← and D / → steer · Space or Shift boost · R restart. You are BLUE; score in the blue goal on the right. The orange bot chases the ball and tries to score in your goal.</p>
 <div class="controls"><button id="restart">Restart match</button><button id="pause">Pause</button></div>
@@ -25,17 +25,17 @@ function keyup(e){keys.delete(e.key.toLowerCase());}
 addEventListener('keydown',keydown);addEventListener('keyup',keyup);
 document.querySelectorAll('[data-key]').forEach(b=>{const k=b.dataset.key.toLowerCase();b.addEventListener('pointerdown',e=>{e.preventDefault();keys.add(k)});for(const ev of ['pointerup','pointercancel','pointerleave'])b.addEventListener(ev,()=>keys.delete(k));});
 document.getElementById('restart').onclick=()=>reset(false);
-document.getElementById('pause').onclick=()=>{paused=!paused;document.getElementById('pause').textContent=paused?'Resume':'Pause';};
+document.getElementById('pause').onclick=()=>{if(time<=0){reset(false);paused=false;}else{paused=!paused;}document.getElementById('pause').textContent=paused?'Resume':'Pause';};
 function score(team){if(team==='blue'){blue++;goalText='BLUE SCORES!';}else{orange++;goalText='BOT SCORES!';}document.getElementById('blue').textContent=blue;document.getElementById('orange').textContent=orange;goalFlash=1.1;reset(true);}
 function collideWithBall(car,power){const dx=ball.x-car.x,dy=ball.y-car.y,d=Math.hypot(dx,dy),min=car.r+ball.r;if(d<min){const nx=dx/(d||1),ny=dy/(d||1),over=min-d;ball.x+=nx*over;ball.y+=ny*over;const forward=car.v*(Math.cos(car.a)*nx+Math.sin(car.a)*ny);const impact=Math.max(0,forward);ball.vx+=nx*(125+impact*power);ball.vy+=ny*(125+impact*power);car.v*=0.91;}}
 function movePlayer(dt){const up=keys.has('w')||keys.has('arrowup'),down=keys.has('s')||keys.has('arrowdown'),left=keys.has('a')||keys.has('arrowleft'),right=keys.has('d')||keys.has('arrowright'),boost=keys.has('shift')||keys.has(' ');
 if(left)player.a-=3.15*dt*(Math.abs(player.v)>8?Math.sign(player.v):1);if(right)player.a+=3.15*dt*(Math.abs(player.v)>8?Math.sign(player.v):1);
-if(up)player.v+=(boost?720:470)*dt;if(down)player.v-=330*dt;player.v*=Math.pow(0.989,dt*60);player.v=clamp(player.v,-260,boost?720:520);
+if(up)player.v+=(boost?950:650)*dt;if(down)player.v-=330*dt;player.v*=Math.pow(0.989,dt*60);player.v=clamp(player.v,-300,boost?900:650);
 player.x+=Math.cos(player.a)*player.v*dt;player.y+=Math.sin(player.a)*player.v*dt;player.x=clamp(player.x,45+player.r,W-45-player.r);player.y=clamp(player.y,45+player.r,H-45-player.r);collideWithBall(player,1.65);}
 function moveBot(dt){const dx=ball.x-bot.x,dy=ball.y-bot.y;const desired=Math.atan2(dy,dx);let diff=Math.atan2(Math.sin(desired-bot.a),Math.cos(desired-bot.a));
 // Bot follows the ball, and aims slightly toward the player's goal when close to it.
 bot.a+=clamp(diff,-2.6*dt,2.6*dt);
-const facing=Math.cos(diff);bot.v+= (facing>0.15?365:100)*dt;bot.v*=Math.pow(0.992,dt*60);bot.v=clamp(bot.v,-90,440);
+const facing=Math.cos(diff);bot.v+= (facing>0.15?460:140)*dt;bot.v*=Math.pow(0.992,dt*60);bot.v=clamp(bot.v,-110,520);
 bot.x+=Math.cos(bot.a)*bot.v*dt;bot.y+=Math.sin(bot.a)*bot.v*dt;
 bot.x=clamp(bot.x,45+bot.r,W-45-bot.r);bot.y=clamp(bot.y,45+bot.r,H-45-bot.r);
 collideWithBall(bot,1.45);
