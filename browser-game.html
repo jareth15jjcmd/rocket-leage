@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Turbo Arena — Browser Prototype</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#08111f;color:#eef5ff;font:16px system-ui,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:14px}
+main{width:min(100%,1000px)}header{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:10px}h1{font-size:clamp(20px,4vw,30px);margin:0}.hud{display:flex;gap:12px;align-items:center;background:#142238;padding:9px 14px;border-radius:12px;font-weight:700}canvas{display:block;width:100%;height:auto;border:2px solid #3c5878;border-radius:14px;background:#172e37;touch-action:none}p{color:#c5d5e8;line-height:1.5;margin:10px 2px}.controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}button{background:#1e3856;color:white;border:1px solid #547493;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}button:hover{background:#2a4b70}.mobile{display:none;gap:8px;justify-content:center;margin-top:10px}.mobile button{min-width:60px;min-height:50px;font-size:18px;touch-action:none}@media(max-width:650px){.mobile{display:flex;flex-wrap:wrap}}
+</style>
+</head>
+<body><main>
+<header><h1>⚽ Turbo Arena</h1><div class="hud"><span>BLUE <b id="blue">0</b></span><span>—</span><span><b id="orange">0</b> ORANGE</span><span id="clock">90s</span></div></header>
+<canvas id="game" width="960" height="600" aria-label="Top-down car soccer game"></canvas>
+<p><b>How to play:</b> W / ↑ accelerate · S / ↓ reverse · A / ← and D / → steer · Space boost. Drive into the ball and score in the orange goal! Press R to restart. This is a lightweight browser prototype.</p>
+<div class="controls"><button id="restart">Restart match</button><button id="pause">Pause</button></div>
+<div class="mobile"><button data-key="ArrowLeft">◀</button><button data-key="ArrowUp">▲</button><button data-key="ArrowDown">▼</button><button data-key="ArrowRight">▶</button><button data-key=" ">BOOST</button></div>
+</main>
+<script>
+(()=> {
+const c=document.getElementById('game'),ctx=c.getContext('2d'),W=c.width,H=c.height;
+const keys=new Set();let blue=0,orange=0,time=90,paused=false,last=0,goalFlash=0;
+const car={x:245,y:300,a:0,v:0,r:20},ball={x:480,y:300,vx:0,vy:0,r:14};
+const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+function reset(keepScore=true){car.x=245;car.y=300;car.a=0;car.v=0;ball.x=480;ball.y=300;ball.vx=ball.vy=0;if(!keepScore){blue=orange=0;time=90;document.getElementById('blue').textContent=blue;document.getElementById('orange').textContent=orange;}}
+function keydown(e){if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();keys.add(e.key.toLowerCase());if(e.key.toLowerCase()==='r')reset(false);}
+function keyup(e){keys.delete(e.key.toLowerCase());}
+addEventListener('keydown',keydown);addEventListener('keyup',keyup);
+document.querySelectorAll('[data-key]').forEach(b=>{const k=b.dataset.key.toLowerCase();b.addEventListener('pointerdown',e=>{e.preventDefault();keys.add(k)});for(const ev of ['pointerup','pointercancel','pointerleave'])b.addEventListener(ev,()=>keys.delete(k));});
+document.getElementById('restart').onclick=()=>reset(false);
+document.getElementById('pause').onclick=()=>{paused=!paused;document.getElementById('pause').textContent=paused?'Resume':'Pause';};
+function score(team){if(team==='blue')blue++;else orange++;document.getElementById('blue').textContent=blue;document.getElementById('orange').textContent=orange;goalFlash=1.2;reset(true);}
+function update(dt){
+ if(paused)return;
+ time=Math.max(0,time-dt);document.getElementById('clock').textContent=Math.ceil(time)+'s';if(time<=0){paused=true;document.getElementById('pause').textContent='Resume';}
+ const up=keys.has('w')||keys.has('arrowup'),down=keys.has('s')||keys.has('arrowdown'),left=keys.has('a')||keys.has('arrowleft'),right=keys.has('d')||keys.has('arrowright'),boost=keys.has('shift')||keys.has(' ');
+ if(left)car.a-=2.8*dt*(Math.abs(car.v)>0.2?Math.sign(car.v):1);if(right)car.a+=2.8*dt*(Math.abs(car.v)>0.2?Math.sign(car.v):1);
+ if(up)car.v+= (boost?390:250)*dt;if(down)car.v-=190*dt;car.v*=Math.pow(0.985,dt*60);car.v=clamp(car.v,-180,boost?470:330);
+ car.x+=Math.cos(car.a)*car.v*dt;car.y+=Math.sin(car.a)*car.v*dt;
+ const top=45,bottom=H-45,leftWall=45,rightWall=W-45,goalHalf=86;
+ car.x=clamp(car.x,leftWall+car.r,rightWall-car.r);car.y=clamp(car.y,top+car.r,bottom-car.r);
+ // arena rails, with open goals at each end
+ if(ball.y-ball.r<top){ball.y=top+ball.r;ball.vy=Math.abs(ball.vy)*.82}
+ if(ball.y+ball.r>bottom){ball.y=bottom-ball.r;ball.vy=-Math.abs(ball.vy)*.82}
+ if(ball.x-ball.r<leftWall){if(Math.abs(ball.y-H/2)<goalHalf){score('orange');return;}ball.x=leftWall+ball.r;ball.vx=Math.abs(ball.vx)*.82}
+ if(ball.x+ball.r>rightWall){if(Math.abs(ball.y-H/2)<goalHalf){score('blue');return;}ball.x=rightWall-ball.r;ball.vx=-Math.abs(ball.vx)*.82}
+ ball.x+=ball.vx*dt;ball.y+=ball.vy*dt;ball.vx*=Math.pow(.992,dt*60);ball.vy*=Math.pow(.992,dt*60);
+ // car-ball collision and impulse
+ const dx=ball.x-car.x,dy=ball.y-car.y,d=Math.hypot(dx,dy),min=car.r+ball.r;
+ if(d<min){const nx=dx/(d||1),ny=dy/(d||1),over=min-d;ball.x+=nx*over;ball.y+=ny*over;const impact=Math.max(0,car.v*(Math.cos(car.a)*nx+Math.sin(car.a)*ny));ball.vx+=nx*(95+impact*1.45);ball.vy+=ny*(95+impact*1.45);car.v*=-0.12;}
+ goalFlash=Math.max(0,goalFlash-dt);
+}
+function draw(){
+ ctx.clearRect(0,0,W,H);ctx.fillStyle='#123e3d';ctx.fillRect(0,0,W,H);
+ ctx.fillStyle='#1b6651';ctx.fillRect(45,45,W-90,H-90);
+ // goals
+ ctx.fillStyle='#ed8b36';ctx.fillRect(0,H/2-86,45,172);ctx.fillStyle='#4db9ff';ctx.fillRect(W-45,H/2-86,45,172);
+ ctx.strokeStyle='rgba(236,250,245,.7)';ctx.lineWidth=3;ctx.strokeRect(45,45,W-90,H-90);ctx.beginPath();ctx.moveTo(W/2,45);ctx.lineTo(W/2,H-45);ctx.stroke();ctx.beginPath();ctx.arc(W/2,H/2,76,0,Math.PI*2);ctx.stroke();ctx.strokeRect(45,H/2-120,100,240);ctx.strokeRect(W-145,H/2-120,100,240);
+ ctx.fillStyle='rgba(5,15,20,.25)';ctx.fillRect(0,0,W,34);ctx.fillStyle='#e8f4ff';ctx.font='bold 16px system-ui';ctx.fillText('TURBO ARENA • CAR SOCCER',18,23);
+ // ball
+ ctx.beginPath();ctx.arc(ball.x+3,ball.y+5,ball.r+1,0,Math.PI*2);ctx.fillStyle='rgba(0,0,0,.25)';ctx.fill();ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r,0,Math.PI*2);ctx.fillStyle='#f8fafc';ctx.fill();ctx.strokeStyle='#25364a';ctx.lineWidth=2;ctx.stroke();ctx.beginPath();ctx.arc(ball.x,ball.y,5,0,Math.PI*2);ctx.fillStyle='#25364a';ctx.fill();
+ // player car
+ ctx.save();ctx.translate(car.x,car.y);ctx.rotate(car.a);ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(-19,-11+4,42,25);ctx.fillStyle='#43b7ff';ctx.fillRect(-21,-13,42,26);ctx.fillStyle='#e9f7ff';ctx.fillRect(-7,-10,15,20);ctx.fillStyle='#193b62';ctx.fillRect(7,-9,9,18);ctx.fillStyle='#10202c';ctx.fillRect(-15,-16,9,5);ctx.fillRect(10,-16,9,5);ctx.fillRect(-15,11,9,5);ctx.fillRect(10,11,9,5);ctx.fillStyle='#fff';ctx.beginPath();ctx.moveTo(24,0);ctx.lineTo(14,-6);ctx.lineTo(14,6);ctx.fill();ctx.restore();
+ if(goalFlash>0){ctx.fillStyle='rgba(255,255,255,'+(goalFlash*.45)+')';ctx.fillRect(0,0,W,H);ctx.fillStyle='#fff';ctx.font='bold 54px system-ui';ctx.textAlign='center';ctx.fillText('GOAL!',W/2,H/2);ctx.textAlign='left';}
+ if(paused){ctx.fillStyle='rgba(0,0,0,.45)';ctx.fillRect(0,0,W,H);ctx.fillStyle='#fff';ctx.font='bold 42px system-ui';ctx.textAlign='center';ctx.fillText(time<=0?'MATCH OVER':'PAUSED',W/2,H/2);ctx.textAlign='left';}
+}
+function frame(now){const dt=Math.min((now-last)/1000||0,0.033);last=now;update(dt);draw();requestAnimationFrame(frame)}requestAnimationFrame(frame);
+})();
+</script></body></html>
